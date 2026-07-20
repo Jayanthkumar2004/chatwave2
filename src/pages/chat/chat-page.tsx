@@ -37,22 +37,13 @@ export function ChatPage() {
     return chats.find((c) => c.id === chatId) ?? null;
   }, [chats, chatId]);
 
-  // If the chatId in the URL doesn't match any of the user's chats (e.g. not
-  // yet in the list because realtime hasn't refreshed), we still try to show
-  // it. The ChatWindow handles its own message subscription. But for the
-  // sidebar selection state we rely on chats being loaded.
   const selectedId = chatId ?? null;
-
-  // On desktop, no chat selected -> show empty state.
-  // On mobile, no chat selected -> show sidebar only.
   const showSidebarOnly = !selectedId;
 
   const handleSelectChat = (id: string) => navigate(`/chats/${id}`, { replace: false });
   const handleBack = () => navigate('/chats', { replace: false });
   const handleChatCreated = (id: string) => navigate(`/chats/${id}`);
 
-  // If selected chat is not in the list yet (e.g. we just created it), build a
-  // minimal placeholder so the window can render and fetch its own messages.
   const chatForWindow: ChatWithDetails | null = selectedChat
     ? selectedChat
     : selectedId
@@ -68,14 +59,13 @@ export function ChatPage() {
       }
     : null;
 
-  // Close the info drawer if the selected chat disappears
   useEffect(() => {
     if (!selectedChat) setShowInfo(false);
   }, [selectedChat]);
 
   return (
-    <div className="flex h-full w-full overflow-hidden bg-background">
-      {/* Sidebar — always present on desktop, only when no chat selected on mobile */}
+    <div className="flex h-screen w-full overflow-hidden bg-background safe-top safe-bottom">
+      {/* Sidebar — full width on mobile if no chat selected, fixed width on desktop */}
       <div
         className={
           showSidebarOnly
@@ -94,12 +84,18 @@ export function ChatPage() {
       </div>
 
       {/* Chat window — full width on mobile, flex-1 on desktop */}
-      <div className={showSidebarOnly ? 'hidden h-full flex-1 md:block' : 'h-full w-full flex-1'}>
+      <div
+        className={
+          showSidebarOnly
+            ? 'hidden h-full flex-1 md:block'
+            : 'h-full w-full flex-1'
+        }
+      >
         {chatForWindow ? (
           <ChatWindow
             key={chatForWindow.id}
             chat={chatForWindow}
-            onBack={handleBack}
+            onBack={handleBack} // shows back button on mobile
             onOpenInfo={() => setShowInfo(true)}
             onAddMembers={() => setShowAddMembers(true)}
             onRenameGroup={() => setShowRename(true)}

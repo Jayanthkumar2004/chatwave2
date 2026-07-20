@@ -23,44 +23,50 @@ const messaging = getMessaging(app);
 
 void analytics;
 
+// Register service worker for FCM
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/firebase-messaging-sw.js')
+    .then(() => console.log('Firebase service worker registered'))
+    .catch(err => console.error('Service worker registration failed:', err));
+}
+
 Notification.requestPermission().then(async (permission) => {
   if (permission === 'granted') {
-    const token = await getToken(messaging, {
-  vapidKey: "BIOewr1WkjzEkiQTH2FlepMBNFaF4soyMh8te3bFVNIyWstN6wif6oG2c6UFA-gYyKLZYNexM9MaZBWpzevDl"
+    try {
+      const token = await getToken(messaging, {
+  vapidKey: "BIOevr1WkjzEkiQTH27FiepMBNafFa45oyhMt8e3bFVNIyWstN6wif6oG2e6UFA-gYykLYZNeXM9MaZBWPzevDI"
 });
+console.log("FCM token:", token);
 
+      // TODO: store token in Supabase user_devices table
+    } catch (error) {
+      console.error('Failed to get FCM token:', error);
+    }
   }
 });
 
-async function runSupabaseAuthDemo() {
-  const email = 'testuser@example.com';
-  const password = 'password123';
-
+// Example placeholder for Supabase auth — no demo credentials
+async function runSupabaseAuth() {
   try {
-    const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({ email, password });
-    if (loginError) {
-      const { error: signUpError } = await supabase.auth.signUp({ email, password });
-      if (signUpError) throw signUpError;
+    // Replace these with values from a login form or user input
+    const email = ""; 
+    const password = "";
+
+    if (!email || !password) {
+      console.warn("Email and password must be provided by user input.");
       return;
     }
 
-    const userId = loginData.user?.id;
-    if (!userId) throw new Error('No user returned after sign in');
+    const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({ email, password });
+    if (loginError) {
+      console.error('Supabase auth failed:', loginError.message);
+      return;
+    }
 
-    const { error: insertError } = await supabase.from('user_devices').insert([{ user_id: userId, fcm_token: 'TEST_TOKEN' }]);
-    if (insertError) throw insertError;
-
-    const { data, error: selectError } = await supabase.from('user_devices').select('*');
-    if (selectError) throw selectError;
-
-    console.log('Supabase auth demo:', { user: loginData.user, tokens: data });
+    console.log('Supabase auth success:', loginData);
   } catch (error) {
-    console.error('Supabase auth demo failed:', error);
+    console.error('Supabase auth error:', error);
   }
-}
-
-if (import.meta.env.DEV) {
-  void runSupabaseAuthDemo();
 }
 
 createRoot(document.getElementById('root')!).render(

@@ -51,6 +51,7 @@
     "embla-carousel-react": "^8.3.0",
     "emoji-mart": "^5.6.0",
     "firebase": "^12.16.0",
+    "firebase-admin": "^14.2.0",
     "framer-motion": "^12.42.2",
     "input-otp": "^1.2.4",
     "lucide-react": "^0.446.0",
