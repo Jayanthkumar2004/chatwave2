@@ -41,7 +41,7 @@ export function ChatPage() {
 
   usePresence();
 
-  // ✅ Heartbeat presence update (only updates last_seen, no forced is_online)
+  // ✅ Heartbeat presence update (only updates last_seen)
   useEffect(() => {
     if (!user?.id) return;
 
@@ -54,7 +54,7 @@ export function ChatPage() {
         .eq('id', user.id);
     }, 30000); // every 30s
 
-    // Mark offline when tab/app closes
+    // Update last_seen one final time when tab/app closes
     const handleUnload = async () => {
       await supabase
         .from('profiles')
