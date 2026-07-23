@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@/providers/auth-provider';
-import { useChatsList } from '@/hooks/use-chats';
+import { useChatsList, chatsKeys } from '@/hooks/use-chats';
 import { usePresence } from '@/hooks/use-presence';
 import { ChatSidebar } from '@/components/chat/chat-sidebar';
 import { ChatWindow } from '@/components/chat/chat-window';
@@ -15,15 +15,75 @@ import { EmptyState } from '@/components/shared/empty-state';
 import { MessageCircle, MessageSquarePlus, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { ChatWithDetails } from '@/types';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
+import { messagesKeys } from '@/hooks/use-messages';
+import { supabase } from '@/lib/supabase'; // ✅ added for presence updates
+
+// ✅ Hook to fetch online users from SQL view
+function useOnlineUsers() {
+  return useQuery({
+    queryKey: ['online_users'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('online_users').select('*');
+      if (error) throw error;
+      return data;
+    },
+    refetchInterval: 30000, // refresh every 30s
+  });
+}
 
 export function ChatPage() {
   const { chatId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
   const { data: chats } = useChatsList();
+  const qc = useQueryClient();
 
-  // Presence heartbeat — updates is_online / last_seen while the app is open
   usePresence();
+
+  // ✅ Heartbeat presence update
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const interval = setInterval(async () => {
+      await supabase
+        .from('profiles')
+        .update({
+          is_online: true,
+          last_seen: new Date().toISOString(),
+        })
+        .eq('id', user.id);
+    }, 30000); // every 30s
+
+    // Mark offline when tab closes
+    const handleUnload = async () => {
+      await supabase
+        .from('profiles')
+        .update({
+          is_online: false,
+          last_seen: new Date().toISOString(),
+        })
+        .eq('id', user.id);
+    };
+    window.addEventListener('beforeunload', handleUnload);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('beforeunload', handleUnload);
+    };
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (user?.id) {
+      qc.invalidateQueries({ queryKey: chatsKeys.list(user.id) });
+    }
+  }, [user?.id, qc]);
+
+  useEffect(() => {
+    if (chatId) {
+      qc.invalidateQueries({ queryKey: messagesKeys.list(chatId) });
+    }
+  }, [chatId, qc]);
 
   const [showNewChat, setShowNewChat] = useState(false);
   const [showNewGroup, setShowNewGroup] = useState(false);
@@ -63,9 +123,11 @@ export function ChatPage() {
     if (!selectedChat) setShowInfo(false);
   }, [selectedChat]);
 
+  // ✅ Fetch online users
+  const { data: onlineUsers } = useOnlineUsers();
+
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background safe-top safe-bottom">
-      {/* Sidebar — full width on mobile if no chat selected, fixed width on desktop */}
+    <div className="flex h-screen w-full bg-background safe-top safe-bottom">
       <div
         className={
           showSidebarOnly
@@ -80,10 +142,10 @@ export function ChatPage() {
           onNewGroup={() => setShowNewGroup(true)}
           onOpenContacts={() => setShowContacts(true)}
           onOpenProfile={() => navigate('/settings')}
+          onlineUsers={onlineUsers ?? []} // ✅ pass online users
         />
       </div>
 
-      {/* Chat window — full width on mobile, flex-1 on desktop */}
       <div
         className={
           showSidebarOnly
@@ -95,7 +157,7 @@ export function ChatPage() {
           <ChatWindow
             key={chatForWindow.id}
             chat={chatForWindow}
-            onBack={handleBack} // shows back button on mobile
+            onBack={handleBack}
             onOpenInfo={() => setShowInfo(true)}
             onAddMembers={() => setShowAddMembers(true)}
             onRenameGroup={() => setShowRename(true)}
@@ -121,7 +183,6 @@ export function ChatPage() {
         )}
       </div>
 
-      {/* Dialogs & drawers */}
       <NewChatDialog open={showNewChat} onOpenChange={setShowNewChat} onChatCreated={handleChatCreated} />
       <NewGroupDialog open={showNewGroup} onOpenChange={setShowNewGroup} onGroupCreated={handleChatCreated} />
       <ContactsDialog open={showContacts} onOpenChange={setShowContacts} onChatOpened={handleChatCreated} />
