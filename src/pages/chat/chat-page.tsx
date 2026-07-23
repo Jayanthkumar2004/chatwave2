@@ -28,7 +28,7 @@ function useOnlineUsers() {
       if (error) throw error;
       return data;
     },
-    refetchInterval: 20000, // refresh every 30s
+    refetchInterval: 20000, // refresh every 20s
   });
 }
 
@@ -41,46 +41,32 @@ export function ChatPage() {
 
   usePresence();
 
-  // ✅ Heartbeat presence update with background handling
+  // ✅ Heartbeat presence update (only updates last_seen, no forced is_online)
   useEffect(() => {
     if (!user?.id) return;
 
-    let interval: NodeJS.Timeout | null = null;
-
-    const startHeartbeat = () => {
-      interval = setInterval(async () => {
-        await supabase
-          .from('profiles')
-          .update({
-            last_seen: new Date().toISOString(),
-            is_online: true,
-          })
-          .eq('id', user.id);
-      }, 30000);
-    };
-
-    const stopHeartbeat = async () => {
-      if (interval) clearInterval(interval);
+    const interval = setInterval(async () => {
       await supabase
         .from('profiles')
         .update({
-          is_online: false,
+          last_seen: new Date().toISOString(),
+        })
+        .eq('id', user.id);
+    }, 30000); // every 30s
+
+    // Mark offline when tab/app closes
+    const handleUnload = async () => {
+      await supabase
+        .from('profiles')
+        .update({
           last_seen: new Date().toISOString(),
         })
         .eq('id', user.id);
     };
-
-    // Start heartbeat when mounted
-    startHeartbeat();
-
-    // Mark offline when tab closes
-    const handleUnload = async () => {
-      await stopHeartbeat();
-    };
     window.addEventListener('beforeunload', handleUnload);
 
     return () => {
-      if (interval) clearInterval(interval);
+      clearInterval(interval);
       window.removeEventListener('beforeunload', handleUnload);
     };
   }, [user?.id]);
