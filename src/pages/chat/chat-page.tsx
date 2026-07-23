@@ -28,7 +28,7 @@ function useOnlineUsers() {
       if (error) throw error;
       return data;
     },
-    refetchInterval: 30000, // refresh every 30s
+    refetchInterval: 20000, // refresh every 30s
   });
 }
 
@@ -41,22 +41,26 @@ export function ChatPage() {
 
   usePresence();
 
-  // ✅ Heartbeat presence update (mobile-safe, updates both last_seen + is_online)
+  // ✅ Heartbeat presence update with background handling
   useEffect(() => {
     if (!user?.id) return;
 
-    const interval = setInterval(async () => {
-      await supabase
-        .from('profiles')
-        .update({
-          last_seen: new Date().toISOString(),
-          is_online: true,
-        })
-        .eq('id', user.id);
-    }, 30000); // every 30s
+    let interval: NodeJS.Timeout | null = null;
 
-    // Mark offline when tab/app closes
-    const handleUnload = async () => {
+    const startHeartbeat = () => {
+      interval = setInterval(async () => {
+        await supabase
+          .from('profiles')
+          .update({
+            last_seen: new Date().toISOString(),
+            is_online: true,
+          })
+          .eq('id', user.id);
+      }, 30000);
+    };
+
+    const stopHeartbeat = async () => {
+      if (interval) clearInterval(interval);
       await supabase
         .from('profiles')
         .update({
@@ -65,10 +69,18 @@ export function ChatPage() {
         })
         .eq('id', user.id);
     };
+
+    // Start heartbeat when mounted
+    startHeartbeat();
+
+    // Mark offline when tab closes
+    const handleUnload = async () => {
+      await stopHeartbeat();
+    };
     window.addEventListener('beforeunload', handleUnload);
 
     return () => {
-      clearInterval(interval);
+      if (interval) clearInterval(interval);
       window.removeEventListener('beforeunload', handleUnload);
     };
   }, [user?.id]);
@@ -142,7 +154,7 @@ export function ChatPage() {
           onNewGroup={() => setShowNewGroup(true)}
           onOpenContacts={() => setShowContacts(true)}
           onOpenProfile={() => navigate('/settings')}
-          onlineUsers={onlineUsers ?? []} // ✅ pass online users
+          onlineUsers={onlineUsers ?? []}
         />
       </div>
 
