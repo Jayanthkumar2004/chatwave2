@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button';
 import type { ChatWithDetails } from '@/types';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { messagesKeys } from '@/hooks/use-messages';
-import { supabase } from '@/lib/supabase'; // ✅ added for presence updates
+import { supabase } from '@/lib/supabase';
 
 // ✅ Hook to fetch online users from SQL view
 function useOnlineUsers() {
@@ -41,7 +41,7 @@ export function ChatPage() {
 
   usePresence();
 
-  // ✅ Heartbeat presence update
+  // ✅ Heartbeat presence update (mobile-safe, updates both last_seen + is_online)
   useEffect(() => {
     if (!user?.id) return;
 
@@ -49,13 +49,13 @@ export function ChatPage() {
       await supabase
         .from('profiles')
         .update({
-          is_online: true,
           last_seen: new Date().toISOString(),
+          is_online: true,
         })
         .eq('id', user.id);
     }, 30000); // every 30s
 
-    // Mark offline when tab closes
+    // Mark offline when tab/app closes
     const handleUnload = async () => {
       await supabase
         .from('profiles')
