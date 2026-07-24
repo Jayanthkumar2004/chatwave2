@@ -19,33 +19,116 @@ export function usePresence() {
 
     const goOnline = () => {
       if (stopped) return;
-      setPresence(user.id, true).catch(() => undefined);
+
+      console.log(
+        "🟢 ONLINE",
+        "visibility:",
+        document.visibilityState,
+        "time:",
+        new Date().toLocaleTimeString()
+      );
+
+      setPresence(user.id, true).catch((err) => {
+        console.error("setPresence(true) failed:", err);
+      });
     };
+
     const goOffline = () => {
       if (stopped) return;
-      setPresence(user.id, false).catch(() => undefined);
+
+      console.log(
+        "🔴 OFFLINE",
+        "visibility:",
+        document.visibilityState,
+        "time:",
+        new Date().toLocaleTimeString()
+      );
+
+      setPresence(user.id, false).catch((err) => {
+        console.error("setPresence(false) failed:", err);
+      });
     };
 
-    goOnline();
-    heartbeatRef.current = window.setInterval(goOnline, 25_000);
+    const startHeartbeat = () => {
+      if (heartbeatRef.current !== null) return;
+
+      heartbeatRef.current = window.setInterval(() => {
+        if (document.visibilityState !== "visible") {
+          console.log("⏹️ Heartbeat skipped - page hidden");
+          return;
+        }
+
+        console.log(
+          "💓 HEARTBEAT",
+          "visibility:",
+          document.visibilityState,
+          "time:",
+          new Date().toLocaleTimeString()
+        );
+
+        goOnline();
+      }, 25000);
+    };
+
+    const stopHeartbeat = () => {
+      if (heartbeatRef.current !== null) {
+        clearInterval(heartbeatRef.current);
+        heartbeatRef.current = null;
+        console.log("🛑 Heartbeat stopped");
+      }
+    };
+
+    // Initial state
+    if (document.visibilityState === "visible") {
+      goOnline();
+      startHeartbeat();
+    } else {
+      goOffline();
+    }
 
     const onVis = () => {
-      if (document.visibilityState === 'visible') goOnline();
-      else goOffline();
+      console.log(
+        "👀 visibilitychange ->",
+        document.visibilityState,
+        "time:",
+        new Date().toLocaleTimeString()
+      );
+
+      if (document.visibilityState === "visible") {
+        goOnline();
+        startHeartbeat();
+      } else {
+        stopHeartbeat();
+        goOffline();
+      }
     };
+
     const onBeforeUnload = () => {
-      // best-effort: navigator.sendBeacon style not possible for supabase-js.
+      console.log(
+        "❌ beforeunload",
+        new Date().toLocaleTimeString()
+      );
+
+      stopHeartbeat();
       goOffline();
     };
 
-    document.addEventListener('visibilitychange', onVis);
-    window.addEventListener('beforeunload', onBeforeUnload);
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("beforeunload", onBeforeUnload);
 
     return () => {
+      console.log(
+        "🧹 Cleanup",
+        new Date().toLocaleTimeString()
+      );
+
       stopped = true;
-      if (heartbeatRef.current) window.clearInterval(heartbeatRef.current);
-      document.removeEventListener('visibilitychange', onVis);
-      window.removeEventListener('beforeunload', onBeforeUnload);
+
+      stopHeartbeat();
+
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("beforeunload", onBeforeUnload);
+
       goOffline();
     };
   }, [user]);
